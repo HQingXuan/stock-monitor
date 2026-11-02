@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "opening-stock-watch",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-05",
+  "workers_dev": true,
+  "triggers": {
+    "crons": [
+      "16-26 14,15 * * MON-FRI"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ALPACA_ACCOUNT_ENV": "paper",
+    "INITIAL_SYMBOLS": "SPY,QQQ,TQQQ,GOOG",
+    "INITIAL_DAYS": "7"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "opening-stock-watch",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
