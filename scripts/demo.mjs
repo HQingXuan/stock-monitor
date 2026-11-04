@@ -1,10 +1,13 @@
+import { loadEnv } from './env.mjs';
+import { t } from '../src/messages.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { buildReport } from '../src/alpaca.js';
 import { environment, mockFetch } from '../test/fixtures.js';
-const report=await buildReport(environment(),'2026-09-08',['SPY','QQQ','TQQQ','GOOG'],Date.parse('2026-09-08T14:16:00Z'),mockFetch());
+const env={...environment(), MESSAGE_LANGUAGE:loadEnv().MESSAGE_LANGUAGE};
+const report=await buildReport(env,'2026-09-08',['SPY','QQQ','TQQQ','GOOG'],Date.parse('2026-09-08T14:16:00Z'),mockFetch());
 report.synthetic=true;
 mkdirSync(new URL('../local-reports/',import.meta.url),{recursive:true});
 writeFileSync(new URL('../local-reports/demo.json',import.meta.url),JSON.stringify(report,null,2));
-const text='演示数据：全部数值为模拟，不代表真实市场行情。\n\n'+report.chunks.join('\n\n');
+const text=t(env.MESSAGE_LANGUAGE, 'demoNotice')+'\n\n'+report.chunks.join('\n\n');
 writeFileSync(new URL('../local-reports/demo.txt',import.meta.url),text);
 console.log(text);

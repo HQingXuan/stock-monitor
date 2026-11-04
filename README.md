@@ -6,13 +6,15 @@
 
 价格变化 · 成交量 · 历史同期比较
 
+[English](README.en.md) · **简体中文**
+
 [消息示例](#消息示例) · [快速开始](#快速开始) · [配置与运维](docs/operations.md) · [安全说明](SECURITY.md)
 
 </div>
 
 ---
 
-关注你选的美股 / ETF，自动收到中文行情总结。使用 Alpaca SIP 分钟行情，运行在 Cloudflare Workers + D1；仅监测，不下单。
+关注你选的美股 / ETF，自动收到中文或英文行情总结。使用 Alpaca SIP 分钟行情，运行在 Cloudflare Workers + D1；仅监测，不下单。
 
 ## 什么时候收到？
 
@@ -74,7 +76,9 @@ npm run demo
 bash scripts/setup.sh
 ```
 
-向导会验证行情权限、配置 D1 和 Worker、上传密钥、注册 webhook，并发送一条测试消息。需要 Bash（macOS、Linux 或 WSL）；请勿复用其他项目正在使用的 Bot。详细步骤和已有部署升级方法见 [配置与运维](docs/operations.md)。
+向导首先让你选择 **English / 中文**，并记住选择；报告、命令回复、测试消息和项目错误提示都会使用该语言。随后验证行情权限、配置 D1 和 Worker、上传密钥、注册 webhook，并发送一条测试消息。需要 Bash（macOS、Linux 或 WSL）；请勿复用其他项目正在使用的 Bot。详细步骤和已有部署升级方法见 [配置与运维](docs/operations.md)。
+
+语言保存为 `.setup.env` 中的 `MESSAGE_LANGUAGE=en|zh`，部署时写入 Worker 配置。旧部署未设置时仍使用中文；修改语言需要重新部署，已存报告保留原语言且不重发。Wrangler、npm 等第三方工具的输出保留原语言。详见 [语言设置](docs/operations.md#语言设置)。
 
 ## 在 Telegram 管理关注列表
 

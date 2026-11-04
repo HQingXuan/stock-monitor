@@ -17,7 +17,8 @@
   "vars": {
     "ALPACA_ACCOUNT_ENV": "paper",
     "INITIAL_SYMBOLS": "SPY,QQQ,TQQQ,GOOG",
-    "INITIAL_DAYS": "7"
+    "INITIAL_DAYS": "7",
+    "MESSAGE_LANGUAGE": "zh"
   },
   "d1_databases": [
     {

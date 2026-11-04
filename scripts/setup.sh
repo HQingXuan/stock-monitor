@@ -188,54 +188,56 @@ TOTAL_STAGES=6
 umask 077
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ENV_FILE="$PWD/.setup.env"
+source scripts/setup-language.sh
+choose_language
 if ! command -v node >/dev/null 2>&1; then
   open_url "https://nodejs.org/en/download"
-  warn "请安装Node.js 22或以上，再重新运行此向导。"
+  warn "$(ui '请安装Node.js 22或以上，再重新运行此向导。' 'Install Node.js 22.13 or newer, then rerun setup.')"
   exit 1
 fi
-node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major<22 || (major===22 && minor<13))process.exit(1)' || { warn "需要Node.js 22.13或以上，推荐24 LTS。"; exit 1; }
+node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major<22 || (major===22 && minor<13))process.exit(1)' || { warn "$(ui '需要Node.js 22.13或以上，推荐24 LTS。' 'Node.js 22.13 or newer is required.')"; exit 1; }
 
-banner "股票Bot：账户 → 行情预检 → 云端 → Telegram"
-stage "Cloudflare：创建个人Free账户"
-say "本向导将保存密钥到本机.setup.env，并部署一个Worker和D1数据库。"
-say "默认SPY、QQQ、TQQQ、GOOG；首次启动监控7天；交易日10:16 ET日报。"
+banner "$(ui '股票Bot：账户 → 行情预检 → 云端 → Telegram' 'Stock bot: accounts → data preflight → cloud → Telegram')"
+stage "$(ui 'Cloudflare：创建个人Free账户' 'Cloudflare: create a personal Free account')"
+say "$(ui '本向导将保存密钥到本机.setup.env，并部署一个Worker和D1数据库。' 'This wizard saves secrets to local .setup.env and deploys a Worker and D1 database.')"
+say "$(ui '默认SPY、QQQ、TQQQ、GOOG；首次启动监控7天；交易日10:16、12:00、15:30 ET报告。' 'Defaults: SPY, QQQ, TQQQ, GOOG for 7 calendar days; reports at 10:16, 12:00 and 15:30 ET on trading days.')"
 open_url "https://dash.cloudflare.com/sign-up"
-step "创建个人账户、验证邮箱；已有账户则登录。使用Free方案。"
-pause "完成注册后按Enter（稍后Wrangler会请求浏览器授权）。"
+step "$(ui '创建个人账户、验证邮箱；已有账户则登录。使用Free方案。' 'Create a personal account and verify your email, or sign in. Use the Free plan.')"
+pause "$(ui '完成注册后按Enter（稍后Wrangler会请求浏览器授权）。' 'Press Enter after registration (Wrangler will request browser authorization later).')"
 
-stage "Alpaca：免费Paper账户和数据权限"
+stage "$(ui 'Alpaca：免费Paper账户和数据权限' 'Alpaca: paper account and data access')"
 open_url "https://app.alpaca.markets/signup"
-step "创建账户并验证邮箱，进入Paper Trading模拟环境。"
-step "在仪表盘寻找API Keys，生成Key ID和Secret Key；无需选择付费行情套餐。"
-note "API说明：https://docs.alpaca.markets/us/docs/market-data-faq"
-ask_secret ALPACA_KEY "粘贴API Key ID（隐藏）："
-ask_secret ALPACA_SECRET "粘贴API Secret（隐藏）："
-[[ "$ALPACA_KEY" =~ ^[A-Za-z0-9_-]+$ && "$ALPACA_SECRET" =~ ^[A-Za-z0-9_-]+$ ]] || { warn "Key格式无效。"; exit 1; }
+step "$(ui '创建账户并验证邮箱，进入Paper Trading模拟环境。' 'Create an account, verify your email and open the Paper Trading environment.')"
+step "$(ui '在仪表盘寻找API Keys，生成Key ID和Secret Key；无需选择付费行情套餐。' 'Find API Keys in the dashboard and generate a Key ID and Secret Key; the preflight checks your delayed SIP access.')"
+note "$(ui 'API说明：https://docs.alpaca.markets/us/docs/market-data-faq' 'API documentation: https://docs.alpaca.markets/us/docs/market-data-faq')"
+ask_secret ALPACA_KEY "$(ui '粘贴API Key ID（隐藏）：' 'Paste API Key ID (hidden):')"
+ask_secret ALPACA_SECRET "$(ui '粘贴API Secret（隐藏）：' 'Paste API Secret (hidden):')"
+[[ "$ALPACA_KEY" =~ ^[A-Za-z0-9_-]+$ && "$ALPACA_SECRET" =~ ^[A-Za-z0-9_-]+$ ]] || { warn "$(ui 'Key格式无效。' 'Invalid key format.')"; exit 1; }
 write_env ALPACA_KEY "$ALPACA_KEY"
 write_env ALPACA_SECRET "$ALPACA_SECRET"
 write_env ALPACA_ACCOUNT_ENV "paper"
-say "现在只读取历史SPY行情，预检免费SIP权限。"
+say "$(ui '现在只读取历史SPY行情，预检免费SIP权限。' 'Reading historical SPY bars to check delayed SIP access.')"
 node scripts/preflight.mjs
-pause "预检通过后按Enter。"
+pause "$(ui '预检通过后按Enter。' 'Press Enter after the preflight succeeds.')"
 
-stage "Telegram：创建自己的Bot"
+stage "$(ui 'Telegram：创建自己的Bot' 'Telegram: create your bot')"
 open_url "https://t.me/BotFather"
-step "给官方BotFather发送 /newbot，按提示设置名称和用户名。"
-step "复制它返回的Bot API token。已有本项目bot则复用原token。"
-ask_secret TELEGRAM_BOT_TOKEN "粘贴Bot token（隐藏）："
-[[ "$TELEGRAM_BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]] || { warn "Bot token格式无效。"; exit 1; }
+step "$(ui '给官方BotFather发送 /newbot，按提示设置名称和用户名。' 'Send /newbot to the official BotFather and follow its naming prompts.')"
+step "$(ui '复制它返回的Bot API token。已有本项目bot则复用原token。' 'Copy the Bot API token. Reuse the existing token only for this project’s bot.')"
+ask_secret TELEGRAM_BOT_TOKEN "$(ui '粘贴Bot token（隐藏）：' 'Paste bot token (hidden):')"
+[[ "$TELEGRAM_BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]] || { warn "$(ui 'Bot token格式无效。' 'Invalid bot token format.')"; exit 1; }
 write_env TELEGRAM_BOT_TOKEN "$TELEGRAM_BOT_TOKEN"
 node scripts/telegram-setup.mjs bot
-pause "打开刚显示的bot链接，发送 /start 后按Enter。"
+pause "$(ui '打开刚显示的bot链接，发送 /start 后按Enter。' 'Open the bot link above, send /start and press Enter.')"
 
-stage "Telegram：确认仅你自己的私聊"
+stage "$(ui 'Telegram：确认仅你自己的私聊' 'Telegram: confirm your own private chat')"
 if [[ -z "$(_existing TELEGRAM_CHAT_ID || true)" ]]; then
   node scripts/telegram-setup.mjs chat
 else
-  note "检测到已有私聊ID；Enter可保留，避免重新读取已配置webhook的bot。"
+  note "$(ui '检测到已有私聊ID；Enter可保留，避免重新读取已配置webhook的bot。' 'A saved chat ID exists; press Enter to keep it without querying a bot with an existing webhook.')"
 fi
-ask_secret TELEGRAM_CHAT_ID "粘贴上一步显示的本人私聊ID（隐藏）："
-[[ "$TELEGRAM_CHAT_ID" =~ ^[0-9]+$ ]] || { warn "需要数字私聊ID。"; exit 1; }
+ask_secret TELEGRAM_CHAT_ID "$(ui '粘贴上一步显示的本人私聊ID（隐藏）：' 'Paste your private chat ID from the previous step (hidden):')"
+[[ "$TELEGRAM_CHAT_ID" =~ ^[0-9]+$ ]] || { warn "$(ui '需要数字私聊ID。' 'A numeric private chat ID is required.')"; exit 1; }
 write_env TELEGRAM_CHAT_ID "$TELEGRAM_CHAT_ID"
 BOT_ADMIN_VALUE=$(_existing ADMIN_TOKEN || true)
 [[ -n "$BOT_ADMIN_VALUE" ]] || BOT_ADMIN_VALUE=$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
@@ -244,31 +246,31 @@ BOT_WEBHOOK_VALUE=$(_existing TELEGRAM_WEBHOOK_SECRET || true)
 write_env ADMIN_TOKEN "$BOT_ADMIN_VALUE"
 write_env TELEGRAM_WEBHOOK_SECRET "$BOT_WEBHOOK_VALUE"
 chmod 600 "$ENV_FILE"
-pause "接下来会部署至你授权的Cloudflare账户；按Enter继续。"
+pause "$(ui '接下来会部署至你授权的Cloudflare账户；按Enter继续。' 'Next, deploy to your authorized Cloudflare account. Press Enter to continue.')"
 
-stage "部署Worker、D1和Secrets"
-say "安装部署工具、执行测试，再打开Cloudflare登录授权。"
+stage "$(ui '部署Worker、D1和Secrets' 'Deploy Worker, D1 and secrets')"
+say "$(ui '安装部署工具、执行测试，再打开Cloudflare登录授权。' 'Install deployment tools, run tests, then authorize Cloudflare in your browser.')"
 if [[ ! -f node_modules/wrangler/bin/wrangler.js ]]; then
   if command -v npm >/dev/null 2>&1; then npm install
   elif command -v pnpm >/dev/null 2>&1; then pnpm install
-  else warn "缺少npm/pnpm；请安装Node.js LTS后重跑。"; exit 1
+  else warn "$(ui '缺少npm/pnpm；请安装Node.js LTS后重跑。' 'npm/pnpm is missing; install Node.js and rerun setup.')"; exit 1
   fi
 fi
 node --test test/*.test.js
 node scripts/deploy.mjs
-step "复制完整Worker地址，例如 https://opening-stock-watch.你的账户子域名.workers.dev。"
-note "账户根域名（仅 你的账户子域名.workers.dev）不是bot地址。"
-ask WORKER_URL "粘贴部署输出中的完整Worker地址："
-[[ "$WORKER_URL" =~ ^https://[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.workers\.dev/?$ ]] || { warn "需要Worker名称和账户子域名两部分；请复制完整部署地址后重跑。"; exit 1; }
+step "$(ui '复制完整Worker地址，例如 https://opening-stock-watch.你的账户子域名.workers.dev。' 'Copy the full Worker URL, e.g. https://opening-stock-watch.account-subdomain.workers.dev.')"
+note "$(ui '账户根域名（仅 你的账户子域名.workers.dev）不是bot地址。' 'The account root domain (account-subdomain.workers.dev) is not the bot URL.')"
+ask WORKER_URL "$(ui '粘贴部署输出中的完整Worker地址：' 'Paste the full Worker URL from the deployment output:')"
+[[ "$WORKER_URL" =~ ^https://[A-Za-z0-9-]+\.[A-Za-z0-9-]+\.workers\.dev/?$ ]] || { warn "$(ui '需要Worker名称和账户子域名两部分；请复制完整部署地址后重跑。' 'The URL needs both Worker name and account subdomain; copy the full deployment URL and retry.')"; exit 1; }
 write_env WORKER_URL "$WORKER_URL"
 
-stage "验证云端与手机通知"
-say "连接webhook，发送一条测试消息，并验证云端历史SIP请求。"
+stage "$(ui '验证云端与手机通知' 'Verify cloud access and phone notifications')"
+say "$(ui '连接webhook，发送一条测试消息，并验证云端历史SIP请求。' 'Configure the webhook, send a test message and verify a cloud historical SIP request.')"
 node scripts/telegram-setup.mjs webhook
 node scripts/telegram-setup.mjs test
 node scripts/cloud-check.mjs
-step "在Telegram发送 /start 查看列表；/watch SPY,QQQ,TQQQ,GOOG 7 可续期。"
-note "Cron传播可能需15分钟。首个交易日还需确认10:16 ET实际收到日报。"
-note "若全部准备好，可以删除本机.setup.env；云端Secrets会保留。"
-pause "确认手机收到测试通知后按Enter。"
+step "$(ui '在Telegram发送 /start 查看列表；/watch SPY,QQQ,TQQQ,GOOG 7 可续期。' 'Send /start in Telegram to view the list; /watch SPY,QQQ,TQQQ,GOOG 7 renews it.')"
+note "$(ui 'Cron传播可能需15分钟。首个交易日还需确认10:16 ET实际收到日报。' 'Cron changes may take time to propagate. Verify actual delivery at 10:16, 12:00 and 15:30 ET on the next trading day.')"
+note "$(ui '若全部准备好，可以删除本机.setup.env；云端Secrets会保留。' 'Once configured and credentials are safely backed up, you can remove local .setup.env; cloud secrets remain.')"
+pause "$(ui '确认手机收到测试通知后按Enter。' 'Press Enter after receiving the test notification on your phone.')"
 finish

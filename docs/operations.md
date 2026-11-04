@@ -20,11 +20,26 @@ chmod 600 .setup.env
 | `TELEGRAM_CHAT_ID` | 本人 Telegram 数字私聊 ID |
 | `TELEGRAM_WEBHOOK_SECRET` | 随机 webhook 验证密钥 |
 | `ADMIN_TOKEN` | 随机管理 API Bearer token |
+| `MESSAGE_LANGUAGE` | `en` 或 `zh`；报告、命令回复与项目错误提示的语言，默认兼容中文 |
 | `WORKER_URL` | 部署输出的完整 `https://Worker名称.账户子域名.workers.dev` 地址 |
 
 向导会生成两个随机 token。手动配置时可在安全终端分别运行 `node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))'` 生成，避免录屏或共享终端日志。
 
 `wrangler.jsonc` 只保存通用模板。部署脚本自动把真实 D1 UUID 写入被忽略的 `wrangler.local.json`，并通过标准输入上传 Secrets，不把密钥写进命令参数。`WORKER_URL` 留在本地，`ALPACA_ACCOUNT_ENV` 的云端值来自模板 `vars`；若改用 live 环境，本地配置与模板要保持一致。
+
+## 语言设置
+
+首次 setup 会提供 English / 中文 选择（新安装默认 English）；重新运行时按 Enter 保留已保存的选择。语言写入 `.setup.env` 的 `MESSAGE_LANGUAGE`，部署脚本将其写入实际 Worker 配置的 `vars.MESSAGE_LANGUAGE`。语言不是密钥。
+
+已有部署不设置时继续中文。修改现有部署时，可在实际部署使用的 `wrangler.local.json` 中设置 `vars.MESSAGE_LANGUAGE` 为 `en` 或 `zh`，然后运行：
+
+```bash
+npx wrangler deploy --config wrangler.local.json
+```
+
+保留原数据库绑定、其他变量和 Secrets，同时更新 `.setup.env` 的语言值供未来部署使用。只修改本地 `.setup.env` 不会更新线上服务；历史报告保留原语言，切换语言不补发。语言设置作用于整个私人 Bot，不是逐个聊天设置。状态码及 Wrangler、npm、Node.js、提供商的原始诊断信息不翻译。
+
+本地查看英文模拟消息可运行 `MESSAGE_LANGUAGE=en npm run demo`；中文使用 `MESSAGE_LANGUAGE=zh npm run demo`。模拟报告不访问真实账户或发送通知。
 
 ## 分步操作
 
@@ -116,6 +131,8 @@ npx wrangler deploy --dry-run --outdir /tmp/stock-monitor-build
 
 ```text
 src/core.js             时间、数据完整性、统计、报告排版
+src/messages.js         中英文消息与错误提示
+scripts/setup-language.sh setup 语言选择与保存
 src/alpaca.js           交易日历、SIP 分钟数据、分页与报告构建
 src/worker.js           定时任务、Telegram 命令、D1 状态与管理 API
 migrations/0001.sql    D1 表结构

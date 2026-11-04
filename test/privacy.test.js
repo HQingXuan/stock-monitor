@@ -19,7 +19,7 @@ test('Git excludes private files but permits the empty setup example',()=>{
   const example=readFileSync(new URL('.setup.env.example',root),'utf8');
   for(const line of example.split('\n').filter(l=>l && !l.startsWith('#'))) {
     const [key,value]=line.split('=');
-    assert.equal(value,key==='ALPACA_ACCOUNT_ENV'?'paper':'');
+    assert.equal(value,key==='ALPACA_ACCOUNT_ENV'?'paper':key==='MESSAGE_LANGUAGE'?'zh':'');
   }
   const allowed=spawnSync('git',['check-ignore','--no-index','.setup.env.example'],{cwd:root});
   assert.equal(allowed.status,1);
