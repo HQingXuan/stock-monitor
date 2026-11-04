@@ -88,3 +88,42 @@ JS
 | Worker URL 被拒绝 | 需要完整 Worker 地址，不能只填账户子域名 |
 
 运行日志、预览 JSON 和 D1 导出可能包含私有监控列表、价格数据或通知状态，请勿直接上传公开仓库。项目没有自动删除历史记录的任务；按实际需求管理数据保留。
+
+## 数据口径与限制
+
+- 使用 Alpaca `feed=sip`、`timeframe=1Min`、`adjustment=split`；没有权限时明确失败，不静默切换 IEX。
+- 所有请求窗口结束时间必须早于当前时间至少 16 分钟（15 分钟延迟加 1 分钟缓冲）。
+- 窗口涨跌幅为 `窗口最后一分钟 close / 09:30 open - 1`；早盘窗口最后一分钟为 09:59。
+- 昨收参考为前一交易日最后一分钟的收盘价；半日市使用其实际收盘时间。它不是官方收盘竞价价格。
+- 历史比较取前 5 个交易日同一开盘窗口；均量至少要求 3 个完整历史样本。盘中报告比较开盘以来同长度窗口。数据仅做拆股调整，不含分红总回报。
+- 缺失、重复或无效分钟数据标记为不完整，不补零，不伪造方向判断；“昨日”不使用更早交易日替代。
+- 迷你走势图各自缩放，不能直接比较振幅；成交量不是主动买卖资金流，报告不预测走势。
+- 发送状态按日期与时段独立保存在 D1，旧早盘记录保持兼容，无需数据库迁移。网络结果不确定时标记 `uncertain`，避免盲目重发；不保证绝对不漏发或 exactly-once。
+- D1 报告与状态没有自动清理策略，长期运行需要自行检查存储量。数据和 Telegram 通信受各自服务条款、权限和可用性约束。
+
+## 开发与验证
+
+```bash
+npm test
+npm run demo
+npm run smoke
+npx wrangler deploy --dry-run --outdir /tmp/stock-monitor-build
+```
+
+测试使用模拟外部 API；smoke 在本地 workerd 和 D1 上验证运行时。以上命令不发送真实 Telegram 消息，dry-run 只构建、不部署。部署后应在下一个交易日确认定时报告实际送达。费用、配额与数据权限取决于账户套餐，本项目不承诺永久免费。
+
+### 代码结构
+
+```text
+src/core.js             时间、数据完整性、统计、报告排版
+src/alpaca.js           交易日历、SIP 分钟数据、分页与报告构建
+src/worker.js           定时任务、Telegram 命令、D1 状态与管理 API
+migrations/0001.sql    D1 表结构
+scripts/setup.sh       交互式部署向导
+scripts/deploy.mjs     Cloudflare 部署与 Secrets 上传
+scripts/preflight.mjs  本地 Alpaca 权限预检（访问真实 API）
+scripts/cloud-check.mjs 云端历史预览检查（访问真实 API）
+scripts/demo.mjs       合成数据示例
+scripts/worker-smoke.mjs 本地运行时测试
+test/                 单元与集成测试
+```
