@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📊 stock-monitor
+<img src="assets/logo.png" alt="stock-monitor logo" width="200" />
+
+# stock-monitor
 
 **每天三次，把关注的美股走势送到 Telegram。**
 

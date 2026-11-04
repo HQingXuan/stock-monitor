@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📊 stock-monitor
+<img src="assets/logo.png" alt="stock-monitor logo" width="200" />
+
+# stock-monitor
 
 **Your stock watchlist, delivered to Telegram three times a trading day.**
 
