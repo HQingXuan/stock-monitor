@@ -1,4 +1,4 @@
-import { addDays, nyInstant, nyParts, validateSymbols, windowStats, inspectBars, analyzeStock, formatReport } from './core.js';
+import { reportSlots, reportKey, addDays, nyInstant, nyParts, validateSymbols, windowStats, inspectBars, analyzeStock, formatReport } from './core.js';
 
 export class DataError extends Error {
   constructor(message, status = 502) { super(message); this.status = status; }
@@ -61,7 +61,8 @@ export function alpacaClient(env, fetcher = fetch) {
   };
 }
 
-export async function buildReport(env, date, symbols, now = Date.now(), fetcher = fetch) {
+export async function buildReport(env, date, symbols, now = Date.now(), fetcher = fetch, slot = 'opening') {
+  reportKey(date, slot);
   validateSymbols(symbols);
   const client = alpacaClient(env, fetcher);
   const calendar = await client.calendar(addDays(date, -20), date);
@@ -69,15 +70,17 @@ export async function buildReport(env, date, symbols, now = Date.now(), fetcher 
   if (!session) return { date, holiday: true, stocks: [], chunks: [] };
   // US listed stocks/ETFs only. Unexpected exchange opening hours must be reviewed.
   if (session.open !== '09:30') throw new DataError(`未支持的开盘时间 ${session.open}，停止常规日报。`);
-  const start = nyInstant(date, session.open), end = start + 30 * 60000;
+  const start = nyInstant(date, session.open);
+  const end = Math.min(nyInstant(date, reportSlots[slot].end), nyInstant(date, session.close));
+  const duration = end - start;
   const current = await client.bars(symbols, start, end, now);
   const previousSessions = calendar.filter(s => s.date < date).slice(-5).reverse();
   const historical = [];
-  // Bounded, small windows avoid downloading entire days or exceeding Free plan subrequest limits.
+  // Compare equal-duration regular-session windows; short historical sessions remain incomplete.
   for (const day of previousSessions) {
     const from = nyInstant(day.date, day.open);
-    historical.push({ date: day.date, start: from, end: from + 30 * 60000,
-      bars: await client.bars(symbols, from, from + 30 * 60000, now) });
+    historical.push({ date: day.date, start: from, end: from + duration,
+      bars: await client.bars(symbols, from, Math.min(from + duration, nyInstant(day.date, day.close)), now) });
   }
   const priorDay = previousSessions[0];
   const closeEnd = priorDay ? nyInstant(priorDay.date, priorDay.close) : null;
@@ -89,7 +92,7 @@ export async function buildReport(env, date, symbols, now = Date.now(), fetcher 
     return analyzeStock(symbol, today, prior, close?.complete
       ? { price: close.bars[0].c, barTime: close.bars[0].t, date: priorDay.date } : null);
   });
-  const report = { version: 1, date, holiday: false, source: 'alpaca', feed: 'sip', adjustment: 'split',
+  const report = { version: 1, date, slot, holiday: false, source: 'alpaca', feed: 'sip', adjustment: 'split',
     gatheredAt: new Date(now).toISOString(), windowStart: new Date(start).toISOString(),
     windowEndExclusive: new Date(end).toISOString(), stocks };
   report.chunks = formatReport(report);

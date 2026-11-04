@@ -6,7 +6,9 @@
   "workers_dev": true,
   "triggers": {
     "crons": [
-      "16-26 14,15 * * MON-FRI"
+      "16-26 14,15 * * MON-FRI",
+      "0-10 16,17 * * MON-FRI",
+      "30-40 19,20 * * MON-FRI"
     ]
   },
   "observability": {

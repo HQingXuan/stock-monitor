@@ -47,8 +47,8 @@ chmod 600 .setup.env
 `GET /health` 无鉴权，只代表进程存活。以下接口要求 `Authorization: Bearer <ADMIN_TOKEN>`，勿把 token 放入 URL：
 
 - `GET /api/status`：最近 7 次报告状态。
-- `GET /api/report?date=YYYY-MM-DD`：已保存报告，无报告返回 404。
-- `POST /api/preview`：JSON `{"date":"YYYY-MM-DD","symbols":["SPY","QQQ"]}`，即时读取指定历史窗口；不发送消息、不保存日报。
+- `GET /api/report?date=YYYY-MM-DD`：已保存早盘报告，无报告返回 404；加 `&slot=noon` 或 `&slot=afternoon` 查询盘中报告。
+- `POST /api/preview`：JSON `{"date":"YYYY-MM-DD","symbols":["SPY","QQQ"]}`，可加 `"slot":"noon"` 或 `"slot":"afternoon"`，默认 `opening`；即时读取指定历史窗口；不发送消息、不保存日报。
 
 使用本地配置安全读取状态的示例（不会在命令历史里写出密钥）：
 
@@ -66,7 +66,9 @@ JS
 
 ## 调度和停止监控
 
-模板 UTC cron 是 `16-26 14,15 * * MON-FRI`；应用仅允许美东 10:16–10:26 执行，另一组小时会被过滤。实际交易日由 Alpaca 日历确认。
+模板 UTC cron 为 `16-26 14,15 * * MON-FRI`、`0-10 16,17 * * MON-FRI`、`30-40 19,20 * * MON-FRI`。应用按 America/New_York 仅允许 10:16–10:26、12:00–12:10、15:30–15:40 执行，自动过滤另一季节对应的 UTC 小时。实际交易日由 Alpaca 日历确认。每个时段独立去重与重试；早盘键仍为日期，新增键为日期加 `-noon` / `-afternoon`，无需迁移 D1。
+
+现有部署升级时，更新代码以及实际部署配置的 `triggers.crons`，再部署 Worker；只推送 GitHub 不会更新线上服务。保留原 D1 绑定、Secrets 和 webhook。Cloudflare 定时触发和外部服务可能延迟，因此时间是计划开始时间，不保证消息精确到秒送达。
 
 暂停个股用 `/stop SYMBOL`。暂停全部监控可先 `/list`，再 `/stop` 删除全部活跃标的；列表不会因为下一次初始化又自动补回。也可在 Cloudflare 控制台停用 cron。代码重新部署时模板里的 cron 可能恢复，暂停状态需要相应维护配置。保留 D1 以保留发送记录。
 

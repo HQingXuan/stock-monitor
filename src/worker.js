@@ -1,4 +1,4 @@
-import { addDays, nyParts, scheduledWindow, validateSymbols } from './core.js';
+import { addDays, nyParts, scheduledSlot, reportSlots, reportKey, validateSymbols } from './core.js';
 import { buildReport } from './alpaca.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -62,32 +62,34 @@ export async function deliver(env, date, chunks, fetcher = fetch) {
 }
 
 export async function runDaily(env, now = Date.now(), fetcher = fetch) {
-  if (!scheduledWindow(now)) return { status: 'outside-window' };
+  const slot = scheduledSlot(now);
+  if (!slot) return { status: 'outside-window' };
   const { date } = nyParts(now);
+  const key = reportKey(date, slot);
   await initialize(env, date);
   const symbols = await activeSymbols(env, date);
   if (!symbols.length) return { status: 'no-active-watches' };
-  await env.DB.prepare("INSERT OR IGNORE INTO reports (date,status,updated_at) VALUES (?,'pending',?)").bind(date, stamp()).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO reports (date,status,updated_at) VALUES (?,'pending',?)").bind(key, stamp()).run();
   const claim = await env.DB.prepare(`UPDATE reports SET status='running',lease_until=?,updated_at=?
     WHERE date=? AND status IN ('pending','error','ready','running') AND lease_until<?`)
-    .bind(now + 120000, stamp(), date, now).run();
+    .bind(now + 120000, stamp(), key, now).run();
   if (!claim.meta.changes) return { status: 'already-handled-or-running' };
   try {
-    const stored = await env.DB.prepare('SELECT body FROM reports WHERE date=?').bind(date).first();
-    const report = stored.body ? JSON.parse(stored.body) : await buildReport(env, date, symbols, now, fetcher);
-    await env.DB.prepare("UPDATE reports SET body=?,status='ready',error=NULL WHERE date=?").bind(JSON.stringify(report), date).run();
-    const status = report.holiday ? 'holiday' : await deliver(env, date, report.chunks, fetcher);
+    const stored = await env.DB.prepare('SELECT body FROM reports WHERE date=?').bind(key).first();
+    const report = stored.body ? JSON.parse(stored.body) : await buildReport(env, date, symbols, now, fetcher, slot);
+    await env.DB.prepare("UPDATE reports SET body=?,status='ready',error=NULL WHERE date=?").bind(JSON.stringify(report), key).run();
+    const status = report.holiday ? 'holiday' : await deliver(env, key, report.chunks, fetcher);
     await env.DB.prepare('UPDATE reports SET status=?,lease_until=0,updated_at=? WHERE date=?')
-      .bind(status === 'retry' ? 'ready' : status, stamp(), date).run();
-    console.log(JSON.stringify({ event: 'daily-report', date, status }));
+      .bind(status === 'retry' ? 'ready' : status, stamp(), key).run();
+    console.log(JSON.stringify({ event: 'daily-report', date, slot, status }));
     return { status };
   } catch (error) {
     const safe = String(error.message || '未知错误').replaceAll(env.ALPACA_KEY || '\0', '[redacted]').replaceAll(env.ALPACA_SECRET || '\0', '[redacted]');
-    await env.DB.prepare("UPDATE reports SET status='error',lease_until=0,error=?,updated_at=? WHERE date=?").bind(safe, stamp(), date).run();
+    await env.DB.prepare("UPDATE reports SET status='error',lease_until=0,error=?,updated_at=? WHERE date=?").bind(safe, stamp(), key).run();
     console.log(JSON.stringify({ event: 'report-failed', date, error: safe }));
     // Last retry gives an actionable failure notification instead of fabricated prices.
-    if (nyParts(now).minute === 26) {
-      await deliver(env, `${date}-error`, [`⚠ ${date} 股票日报生成失败。\n${safe}\n请检查云端 /api/status；今天没有可靠的价格/成交量结论。`], fetcher);
+    if (nyParts(now).minute === reportSlots[slot].minute + 10) {
+      await deliver(env, `${key}-error`, [`⚠ ${date} ${reportSlots[slot].label}生成失败。\n${safe}\n请检查云端 /api/status；本时段没有可靠的价格/成交量结论。`], fetcher);
     }
     return { status: 'error', error: safe };
   }
@@ -109,7 +111,7 @@ export async function handleCommand(env, text, date) {
     const actual = await activeSymbols(env, date);
     const skipped = symbols.filter(s => !actual.includes(s));
     return `监控至 ${addDays(date, days - 1)}（含当天）：${symbols.filter(s => actual.includes(s)).join(', ')}` +
-      (skipped.length ? `\n已达到15只上限，未添加：${skipped.join(', ')}` : '') + '\n每个交易日10:16 ET；当天已发送的日报不重复发送。';
+      (skipped.length ? `\n已达到15只上限，未添加：${skipped.join(', ')}` : '') + '\n每个交易日10:16、12:00、15:30 ET；已发送的同一时段报告不重复发送。';
   }
   if (command === '/stop') {
     const symbols = validateSymbols((rawSymbols || '').split(','));
@@ -122,7 +124,7 @@ export async function handleCommand(env, text, date) {
       '\n\n/watch SPY,QQQ 7\n/stop SPY\n/list\n/status\n支持美股/ETF，最多15只。天数为自然日，休市不发。';
   }
   if (command === '/status') {
-    const r = await env.DB.prepare('SELECT date,status,error FROM reports ORDER BY date DESC LIMIT 1').first();
+    const r = await env.DB.prepare('SELECT date,status,error FROM reports ORDER BY updated_at DESC, date DESC LIMIT 1').first();
     return r ? `最近日报：${r.date}\n状态：${r.status}\n${r.error || ''}` : '尚未生成日报。';
   }
   return '命令：/watch SPY,QQQ 7 · /stop SPY · /list · /status';
@@ -148,17 +150,17 @@ async function handleRequest(request, env) {
   }
   if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== `Bearer ${env.ADMIN_TOKEN}`) return json({ error: 'unauthorized' }, 401);
   if (url.pathname === '/api/status') {
-    const rows = await env.DB.prepare('SELECT date,status,error,updated_at FROM reports ORDER BY date DESC LIMIT 7').all();
+    const rows = await env.DB.prepare('SELECT date,status,error,updated_at FROM reports ORDER BY updated_at DESC, date DESC LIMIT 7').all();
     return json({ reports: rows.results });
   }
   if (url.pathname === '/api/report') {
-    const row = await env.DB.prepare('SELECT body FROM reports WHERE date=?').bind(url.searchParams.get('date') || nyParts(Date.now()).date).first();
+    const row = await env.DB.prepare('SELECT body FROM reports WHERE date=?').bind(reportKey(url.searchParams.get('date') || nyParts(Date.now()).date, url.searchParams.get('slot') || 'opening')).first();
     return row?.body ? new Response(row.body, { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }) : json({ error: 'not found' }, 404);
   }
   if (url.pathname === '/api/preview' && request.method === 'POST') {
     const body = await request.json();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return json({ error: 'date needs YYYY-MM-DD' }, 400);
-    return json(await buildReport(env, body.date, validateSymbols(body.symbols || ['SPY'])));
+    return json(await buildReport(env, body.date, validateSymbols(body.symbols || ['SPY']), Date.now(), fetch, body.slot || 'opening'));
   }
   return json({ error: 'not found' }, 404);
 }

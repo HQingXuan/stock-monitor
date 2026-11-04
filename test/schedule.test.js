@@ -31,11 +31,11 @@ for (const file of ['wrangler.jsonc', 'wrangler.local.json']) {
       for (let day=0; day<7; day++) {
         const date = new Date(Date.parse(`${sunday}T12:00:00Z`) + day*86400000).toISOString().slice(0,10);
         let executions = 0;
-        for (let minute=0; minute<60; minute++) {
-          const time = nyInstant(date, `10:${String(minute).padStart(2,'0')}`);
+        for (let minute=0; minute<1440; minute++) {
+          const time = nyInstant(date, `${Math.floor(minute/60)}:${String(minute%60).padStart(2,'0')}`);
           if (fires(crons,time) && scheduledWindow(time)) executions++;
         }
-        assert.equal(executions, day>=1 && day<=5 ? 11 : 0, `${date}: expected weekday retry window`);
+        assert.equal(executions, day>=1 && day<=5 ? 33 : 0, `${date}: expected weekday retry window`);
       }
     }
   });

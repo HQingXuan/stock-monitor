@@ -21,9 +21,27 @@ export function nyInstant(date, clock) {
   return Date.parse(`${date}T00:00:00Z`) + (hour - offset) * 3600000 + minute * 60000;
 }
 
-export function scheduledWindow(now) {
+export const reportSlots = {
+  opening: { hour: 10, minute: 16, end: '10:00', label: '开盘日报' },
+  noon: { hour: 12, minute: 0, end: '11:44', label: '午间总结' },
+  afternoon: { hour: 15, minute: 30, end: '15:14', label: '下午总结' }
+};
+
+export function scheduledSlot(now) {
   const p = nyParts(now);
-  return p.hour === 10 && p.minute >= 16 && p.minute <= 26;
+  return Object.keys(reportSlots).find(key => {
+    const slot = reportSlots[key];
+    return p.hour === slot.hour && p.minute >= slot.minute && p.minute <= slot.minute + 10;
+  }) || null;
+}
+
+export function scheduledWindow(now) {
+  return scheduledSlot(now) !== null;
+}
+
+export function reportKey(date, slot = 'opening') {
+  if (!Object.hasOwn(reportSlots, slot)) throw new Error('未知报告时段。');
+  return slot === 'opening' ? date : `${date}-${slot}`;
 }
 
 export function validateSymbols(value) {
@@ -103,11 +121,15 @@ const pct = x => x === null ? '数据不足' : `${x >= 0 ? '+' : ''}${x.toFixed(
 const vol = x => x === null ? '数据不足' : x >= 1e6 ? `${(x / 1e6).toFixed(2)}M` : `${(x / 1000).toFixed(1)}K`;
 
 export function formatReport(report) {
-  const header = `📊 股票开盘日报 · ${report.date}\n窗口：09:30–10:00 ET\n数据：Alpaca SIP 全市场 · 延迟至少15分钟\n价格口径：分钟成交K线；拆股调整\n`;
+  const slot = reportSlots[report.slot || 'opening'];
+  const end = report.windowEndExclusive ? nyParts(report.windowEndExclusive) : { hour: 10, minute: 0 };
+  const endClock = `${String(end.hour).padStart(2, '0')}:${String(end.minute).padStart(2, '0')}`;
+  const intraday = report.slot && report.slot !== 'opening';
+  const header = `📊 股票${slot.label} · ${report.date}\n窗口：09:30–${endClock} ET（不含终点）\n数据：Alpaca SIP 全市场 · 延迟至少15分钟\n价格口径：分钟成交K线；拆股调整\n`;
   const blocks = report.stocks.map(s => {
     if (!s.current.complete) return `\n${s.symbol}\n⚠ 数据不完整，本次不计算涨跌和成交量结论\n${s.current.issues.join('；')}\n`;
     const c = s.current;
-    return `\n${s.symbol} · $${c.price.toFixed(2)}\n较昨收前1分钟参考：${pct(s.changeFromPreviousClose)}\n开盘半小时变化：${pct(c.openingChange)}\n成交量：${vol(c.volume)} · 较昨日同期 ${pct(s.volumeVsPrevious)}\n近${s.baselineCount}/${s.baselineRequested}日同期均量：${s.volumeRatio === null ? '样本不足' : `${s.volumeRatio.toFixed(2)}×`}\n每5分钟价格 ${sparkline(c.buckets.map(x => x.close))}\n每5分钟成交量 ${sparkline(c.buckets.map(x => x.volume))}\n分段量：${c.buckets.map(x => vol(x.volume)).join(' / ')}\n历史同窗口价 ${sparkline(s.history.filter(x => x.complete).map(x => x.price))}\n历史同窗口量 ${sparkline(s.history.filter(x => x.complete).map(x => x.volume))}\n`;
+    return `\n${s.symbol} · $${c.price.toFixed(2)}\n较昨收前1分钟参考：${pct(s.changeFromPreviousClose)}\n${intraday ? '开盘以来变化' : '开盘半小时变化'}：${pct(c.openingChange)}\n成交量：${vol(c.volume)} · 较昨日同期 ${pct(s.volumeVsPrevious)}\n近${s.baselineCount}/${s.baselineRequested}日同期均量：${s.volumeRatio === null ? '样本不足' : `${s.volumeRatio.toFixed(2)}×`}\n每5分钟价格 ${sparkline(c.buckets.map(x => x.close))}\n每5分钟成交量 ${sparkline(c.buckets.map(x => x.volume))}${intraday && c.expected % 5 ? '（末段4分钟）' : ''}\n${intraday ? `区间最高/最低：$${c.high.toFixed(2)} / $${c.low.toFixed(2)}` : `分段量：${c.buckets.map(x => vol(x.volume)).join(' / ')}`}\n历史同窗口价 ${sparkline(s.history.filter(x => x.complete).map(x => x.price))}\n历史同窗口量 ${sparkline(s.history.filter(x => x.complete).map(x => x.volume))}\n`;
   });
   const chunks = [];
   let text = header;
@@ -115,7 +137,7 @@ export function formatReport(report) {
     if (text.length + block.length > 3400) { chunks.push(text); text = header + '（续）\n'; }
     text += block;
   }
-  text += '\n09:59分钟K线覆盖至10:00；不代表发送时现价。\n迷你图各自缩放；成交量不表示买盘/卖盘方向。';
+  text += `\n分钟K线覆盖至${endClock} ET；不代表发送时现价。\n迷你图各自缩放；成交量不表示买盘/卖盘方向。`;
   chunks.push(text);
   return chunks;
 }
