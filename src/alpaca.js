@@ -66,6 +66,14 @@ export async function buildReport(env, date, symbols, now = Date.now(), fetcher 
   const language = languageOf(env.MESSAGE_LANGUAGE);
   reportKey(date, slot, language);
   validateSymbols(symbols, language);
+  const volumeOptions = {
+    minShares: Number(env.LARGE_MINUTE_SHARES ?? 10_000_000),
+    multiple: Number(env.UNUSUAL_VOLUME_MULTIPLE ?? 5)
+  };
+  if (!Number.isFinite(volumeOptions.minShares) || volumeOptions.minShares <= 0 ||
+      !Number.isFinite(volumeOptions.multiple) || volumeOptions.multiple <= 1) {
+    throw new DataError(t(language, 'invalidVolumeThreshold'), 400);
+  }
   const client = alpacaClient(env, fetcher);
   const calendar = await client.calendar(addDays(date, -20), date);
   const session = calendar.find(s => s.date === date);
@@ -92,7 +100,7 @@ export async function buildReport(env, date, symbols, now = Date.now(), fetcher 
     const prior = historical.map(h => ({ date: h.date, stats: windowStats(h.bars[symbol], h.start, h.end, language) }));
     const close = priorDay ? inspectBars(closeBars[symbol], closeEnd - 60000, closeEnd, language) : null;
     return analyzeStock(symbol, today, prior, close?.complete
-      ? { price: close.bars[0].c, barTime: close.bars[0].t, date: priorDay.date } : null);
+      ? { price: close.bars[0].c, barTime: close.bars[0].t, date: priorDay.date } : null, volumeOptions);
   });
   const report = { version: 1, date, slot, language, holiday: false, source: 'alpaca', feed: 'sip', adjustment: 'split',
     gatheredAt: new Date(now).toISOString(), windowStart: new Date(start).toISOString(),

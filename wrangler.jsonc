@@ -18,7 +18,9 @@
     "ALPACA_ACCOUNT_ENV": "paper",
     "INITIAL_SYMBOLS": "SPY,QQQ,TQQQ,GOOG",
     "INITIAL_DAYS": "7",
-    "MESSAGE_LANGUAGE": "zh"
+    "MESSAGE_LANGUAGE": "zh",
+    "LARGE_MINUTE_SHARES": "10000000",
+    "UNUSUAL_VOLUME_MULTIPLE": "5"
   },
   "d1_databases": [
     {

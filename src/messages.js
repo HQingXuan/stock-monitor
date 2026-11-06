@@ -6,6 +6,15 @@ export function languageOf(value) {
 }
 
 export const messages = {
+"invalidVolumeThreshold": {"zh": "LARGE_MINUTE_SHARES 必须大于0；UNUSUAL_VOLUME_MULTIPLE 必须大于1，且都必须是有限数值。", "en": "LARGE_MINUTE_SHARES must be >0 and UNUSUAL_VOLUME_MULTIPLE must be >1; both must be finite numbers."},
+"eventsUnavailable": {"zh": "分钟成交异动：此历史报告未计算。", "en": "Minute-volume events: not computed for this saved report."},
+"eventsSummary": {"zh": "分钟成交异动：≥{shares}股 {large}次；≥{multiple}×同期中位量 {unusual}次（可重叠）", "en": "Minute-volume events: ≥{shares} shares: {large}; ≥{multiple}× same-minute median: {unusual} (may overlap)"},
+"eventRow": {"zh": "• {time} ET｜{shares}股｜估算成交额{amount}｜同期量比{ratio}｜分钟涨跌{change}｜{reason}", "en": "• {time} ET | {shares} shares | estimated turnover {amount} | relative volume {ratio} | minute change {change} | {reason}"},
+"eventLarge": {"zh": "达股数门槛", "en": "share threshold"},
+"eventUnusual": {"zh": "相对异常放量", "en": "unusual relative volume"},
+"eventBoth": {"zh": "股数及相对量均达门槛", "en": "both thresholds"},
+"eventsTruncated": {"zh": "共{total}个异动分钟，仅展示成交股数最多的{shown}个。", "en": "{total} event minutes; showing the {shown} largest by share volume."},
+"eventsBaselineMissing": {"zh": "{count}个分钟历史基线不足，仍检查股数门槛；相对异动未能判断。", "en": "{count} minutes lack a usable historical baseline; share threshold checked, relative activity unknown."},
   demoNotice: { zh: "演示数据：全部数值为模拟，不代表真实市场行情。", en: "Demo: all values are synthetic and do not represent real market data." },
   "unknownSlot": {
     "zh": "未知报告时段。",
@@ -111,10 +120,6 @@ export const messages = {
     "zh": "开盘以来变化",
     "en": "Change since open"
   },
-  "partialBucket": {
-    "zh": "（末段4分钟）",
-    "en": " (last bucket: 4 minutes)"
-  },
   "continued": {
     "zh": "（续）",
     "en": "(continued)"
@@ -128,20 +133,16 @@ export const messages = {
     "en": "\n{symbol}\n⚠ Incomplete data; price-change and volume conclusions withheld\n{issues}\n"
   },
   "stockBlock": {
-    "zh": "\n{symbol} · ${price}\n较昨收前1分钟参考：{previousChange}\n{changeLabel}：{change}\n成交量：{volume} · 较昨日同期 {volumeChange}\n近{count}/{requested}日同期均量：{ratio}\n每5分钟价格 {prices}\n每5分钟成交量 {volumes}{partial}\n{range}\n历史同窗口价 {historyPrices}\n历史同窗口量 {historyVolumes}\n",
-    "en": "\n{symbol} · ${price}\nVs. prior session final-minute close: {previousChange}\n{changeLabel}: {change}\nVolume: {volume} · vs. prior session same window {volumeChange}\nRelative volume vs. {count}/{requested} prior sessions: {ratio}\n5-minute prices {prices}\n5-minute volumes {volumes}{partial}\n{range}\nHistorical same-window prices {historyPrices}\nHistorical same-window volumes {historyVolumes}\n"
+    "zh": "\n{symbol} · ${price}\n较昨收前1分钟参考：{previousChange}\n{changeLabel}：{change}\n成交量：{volume} · 较昨日同期 {volumeChange}\n近{count}/{requested}日同期均量：{ratio}\n{range}\n{events}\n历史同窗口价 {historyPrices}\n历史同窗口量 {historyVolumes}\n",
+    "en": "\n{symbol} · ${price}\nVs. prior session final-minute close: {previousChange}\n{changeLabel}: {change}\nVolume: {volume} · vs. prior session same window {volumeChange}\nRelative volume vs. {count}/{requested} prior sessions: {ratio}\n{range}\n{events}\nHistorical same-window prices {historyPrices}\nHistorical same-window volumes {historyVolumes}\n"
   },
   "range": {
     "zh": "区间最高/最低：${high} / ${low}",
     "en": "Window high/low: ${high} / ${low}"
   },
-  "buckets": {
-    "zh": "分段量：{volumes}",
-    "en": "Bucket volumes: {volumes}"
-  },
   "reportFooter": {
-    "zh": "\n分钟K线覆盖至{end} ET；不代表发送时现价。\n迷你图各自缩放；成交量不表示买盘/卖盘方向。",
-    "en": "\nMinute bars cover up to {end} ET; prices are not live at delivery.\nSparklines scale independently; volume does not indicate buying/selling direction."
+    "zh": "\n分钟K线覆盖至{end} ET；不代表发送时现价。\n成交量是整分钟汇总，不是单笔大单；涨跌不代表主动买卖或机构资金流。",
+    "en": "\nMinute bars cover up to {end} ET; prices are not live at delivery.\nVolume aggregates a whole minute, not a single block trade; price changes do not identify trade aggressors or institutional flows."
   },
   "initialDays": {
     "zh": "INITIAL_DAYS 必须为1–365。",

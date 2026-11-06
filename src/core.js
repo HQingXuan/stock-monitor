@@ -97,12 +97,47 @@ export function windowStats(input, start, end, language = 'zh') {
     openingChange: percent(b.at(-1).c, b[0].o), buckets };
 }
 
-export function analyzeStock(symbol, current, prior, previousClose) {
+// Minute aggregates describe trading activity, not individual trades or investor identity.
+export function analyzeVolumeEvents(current, prior, { minShares = 10_000_000, multiple = 5 } = {}) {
+  const result = { minShares, multiple, largeCount: 0, unusualCount: 0, eventCount: 0,
+    baselineMissing: 0, complete: current.complete, events: [] };
+  if (!current.complete) return result;
+  const minuteKey = value => { const p = nyParts(value); return p.hour * 60 + p.minute; };
+  // Use only complete historical windows; absent bars are never zero volume.
+  const history = prior.filter(p => p.stats.complete).map(p => {
+    const bars = p.stats.bars || [];
+    const start = bars.length ? minuteKey(bars[0].t) : 0;
+    return new Map(bars.map((b, i) => [start + i, b.v]));
+  });
+  const startMinute = current.bars?.length ? minuteKey(current.bars[0].t) : 0;
+  for (const [index, bar] of (current.bars || []).entries()) {
+    const samples = history.map(day => day.get(startMinute + index)).filter(Number.isFinite).sort((a,b) => a-b);
+    const middle = Math.floor(samples.length / 2);
+    const median = samples.length >= 3 ? (samples.length % 2 ? samples[middle] : (samples[middle-1]+samples[middle])/2) : null;
+    const ratio = median > 0 ? bar.v / median : null;
+    if (ratio === null) result.baselineMissing++;
+    const large = bar.v >= minShares, unusual = ratio !== null && ratio >= multiple;
+    if (large) result.largeCount++;
+    if (unusual) result.unusualCount++;
+    if (!large && !unusual) continue;
+    const notional = Number.isFinite(bar.vw) && bar.vw > 0 ? bar.v * bar.vw : null;
+    result.events.push({ time: bar.t, shares: bar.v, estimatedNotional: Number.isFinite(notional) ? notional : null,
+      change: percent(bar.c, bar.o), ratio, baselineCount: samples.length, large, unusual });
+  }
+  result.eventCount = result.events.length;
+  // Bound message size while reporting the total hit count; display the largest minutes first.
+  result.events.sort((a,b) => b.shares-a.shares || a.time.localeCompare(b.time));
+  result.events = result.events.slice(0,3);
+  return result;
+}
+
+export function analyzeStock(symbol, current, prior, previousClose, volumeOptions) {
   const good = prior.filter(p => p.stats.complete);
   const mean = good.length >= 3 ? good.reduce((s, p) => s + p.stats.volume, 0) / good.length : null;
   const previous = prior[0]?.stats.complete ? prior[0].stats.volume : null;
   return {
     symbol, current, previousClose,
+    volumeEvents: analyzeVolumeEvents(current, prior, volumeOptions),
     changeFromPreviousClose: percent(current.price, previousClose?.price),
     volumeVsPrevious: percent(current.volume, previous),
     volumeRatio: current.volume !== null && mean > 0 ? current.volume / mean : null,
@@ -128,6 +163,21 @@ export function formatReport(report) {
   const end = report.windowEndExclusive ? nyParts(report.windowEndExclusive) : { hour: 10, minute: 0 };
   const endClock = `${String(end.hour).padStart(2, '0')}:${String(end.minute).padStart(2, '0')}`;
   const intraday = slot !== 'opening';
+  const shares = x => x.toLocaleString('en-US');
+  const eventText = activity => {
+    if (!activity) return msg('eventsUnavailable');
+    const lines = [msg('eventsSummary', { shares: shares(activity.minShares), large: activity.largeCount, multiple: activity.multiple, unusual: activity.unusualCount })];
+    for (const event of activity.events) {
+      const p = nyParts(event.time);
+      lines.push(msg('eventRow', { time: `${String(p.hour).padStart(2,'0')}:${String(p.minute).padStart(2,'0')}`,
+        shares: shares(event.shares), amount: event.estimatedNotional === null ? msg('insufficient') : `≈$${(event.estimatedNotional/1e6).toFixed(2)}M`,
+        ratio: event.ratio === null ? msg('samples') : `${event.ratio.toFixed(2)}× (${event.baselineCount}/5)`, change: pct(event.change),
+        reason: msg(event.large && event.unusual ? 'eventBoth' : event.large ? 'eventLarge' : 'eventUnusual') }));
+    }
+    if (activity.eventCount > activity.events.length) lines.push(msg('eventsTruncated', { total: activity.eventCount, shown: activity.events.length }));
+    if (activity.baselineMissing) lines.push(msg('eventsBaselineMissing', { count: activity.baselineMissing }));
+    return lines.join('\n');
+  };
   const header = msg('reportHeader', { label: msg(slot), date: report.date, end: endClock });
   const blocks = report.stocks.map(s => {
     if (!s.current.complete) return msg('incomplete', { symbol: s.symbol, issues: s.current.issues.join('; ') });
@@ -137,10 +187,8 @@ export function formatReport(report) {
       changeLabel: msg(intraday ? 'intradayChange' : 'openingChange'), change: pct(c.openingChange),
       volume: vol(c.volume), volumeChange: pct(s.volumeVsPrevious), count: s.baselineCount, requested: s.baselineRequested,
       ratio: s.volumeRatio === null ? msg('samples') : `${s.volumeRatio.toFixed(2)}×`,
-      prices: plot(c.buckets.map(x => x.close)), volumes: plot(c.buckets.map(x => x.volume)),
-      partial: intraday && c.expected % 5 ? msg('partialBucket') : '',
-      range: intraday ? msg('range', { high: c.high.toFixed(2), low: c.low.toFixed(2) })
-        : msg('buckets', { volumes: c.buckets.map(x => vol(x.volume)).join(' / ') }),
+      range: msg('range', { high: c.high.toFixed(2), low: c.low.toFixed(2) }),
+      events: eventText(s.volumeEvents),
       historyPrices: plot(s.history.filter(x => x.complete).map(x => x.price)),
       historyVolumes: plot(s.history.filter(x => x.complete).map(x => x.volume))
     });

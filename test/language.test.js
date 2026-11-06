@@ -42,7 +42,7 @@ test('all report slots use selected language without altering numeric analysis',
   report.slot='noon';report.windowEndExclusive=new Date(nyInstant(date,'11:44')).toISOString();
   report.stocks[0].current=windowStats(bars(date,'09:30',134),start,nyInstant(date,'11:44'),'en');
   const text=formatReport(report).join('\n');
-  noChinese(text);assert.match(text,/Change since open/);assert.match(text,/last bucket: 4 minutes/);assert.match(text,/Window high\/low/);
+  noChinese(text);assert.match(text,/Change since open/);assert.doesNotMatch(text,/5-minute prices|5-minute volumes/);assert.match(text,/Window high\/low/);
 });
 
 test('missing, duplicate and invalid bars explain errors in English',()=>{
